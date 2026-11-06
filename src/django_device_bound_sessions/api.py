@@ -185,6 +185,7 @@ def registration_header_value(request: HttpRequest) -> str:
 
 
 def challenge_header_value(session_id: str) -> str:
+    """A ``Secure-Session-Challenge`` header value with a new refresh challenge."""
     return serialize_item(new_refresh_challenge(session_id), {"id": session_id})
 
 

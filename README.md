@@ -6,21 +6,29 @@
 
 ## How it works
 
-With DBSC, a supporting browser (Chrome) creates a key pair in the device's secure hardware when a user logs in. The private key never leaves the device. The library adds a second, **short-lived "bound" cookie** alongside Django's normal session cookie. A browser can only get a new bound cookie by signing a server challenge with that key.
+With DBSC, a supporting browser (Chrome) creates a key pair in the device's secure hardware when the server offers registration after a user logs in. The private key never leaves the device. The library adds a second, **short-lived "bound" cookie** alongside Django's normal session cookie. A browser can only get a new bound cookie by signing a server challenge with that key.
 
 ```
-login ──► response carries  Secure-Session-Registration: (ES256 RS256);path="/dbsc/register/";challenge="…"
-browser ──► POST /dbsc/register/   Secure-Session-Response: <JWT signed by new key, includes public JWK>
-server  ◄── session config JSON + Set-Cookie: dbsc_bound=…; Max-Age=600
+login, then the next page ──► Secure-Session-Registration: (ES256 RS256);path="/dbsc/register/";challenge="…"
+browser ──► POST /dbsc/register/   Secure-Session-Response: <JWT signed by the new key, includes its public JWK>
+server  ◄── 200  session config JSON
+                 Set-Cookie: dbsc_bound=…; Max-Age=600
+                 Secure-Session-Challenge: "<next challenge>";id="<id>"
 
-…bound cookie expires…
+…bound cookie expires; the browser refreshes it before sending its next request…
 browser ──► POST /dbsc/refresh/   Sec-Secure-Session-Id: "<id>"
-server  ◄── 403  Secure-Session-Challenge: "<challenge>";id="<id>"
-browser ──► POST /dbsc/refresh/   Sec-Secure-Session-Id + Secure-Session-Response: <JWT over challenge>
+                                  Secure-Session-Response: <JWT over the cached challenge>
 server  ◄── 200  Set-Cookie: dbsc_bound=…
+                 Secure-Session-Challenge: "<next challenge>";id="<id>"
 ```
 
-Once a Django session is bound, the middleware rejects any request that lacks a valid bound cookie (by default it treats the request as anonymous). An attacker holding only `sessionid` has no key, so they can't refresh and are locked out within `BOUND_COOKIE_AGE` seconds.
+There are two cookies. Django's normal `sessionid` still says who the user is, and stays as long-lived as it always was. `dbsc_bound` is the short-lived one that proves the request comes from the device that registered; only the refresh endpoint issues it.
+
+The registration offer is sent once, on the first page after `login()` that isn't a redirect, within `OFFER_MAX_AGE` (60 seconds).
+
+Every response that sets a bound cookie also sends the next challenge, so a refresh normally takes one request. Refresh challenges stay valid as long as a bound cookie does (`BOUND_COOKIE_AGE + BOUND_COOKIE_GRACE`). If the browser has no usable challenge, for example because the user was idle for longer than that, the server answers its refresh with a `403` and a fresh challenge, and the browser retries with a proof over it.
+
+Once a Django session is bound, the middleware rejects any request that lacks a valid bound cookie (by default it treats the request as anonymous). An attacker holding only `sessionid` has no key, so they can't refresh, and are locked out once the bound cookie expires: within `BOUND_COOKIE_AGE + BOUND_COOKIE_GRACE` seconds (630 by default).
 
 Browsers without DBSC support ignore the registration header. Their sessions never become bound and keep working exactly as they do today.
 
@@ -142,7 +150,7 @@ Set these in a `DBSC` dict in your settings:
 | `BOUND_COOKIE_GRACE` | `30` | extra seconds the server accepts after expiry |
 | `BOUND_COOKIE_DOMAIN` / `_PATH` / `_SECURE` / `_HTTPONLY` / `_SAMESITE` | `None` / `"/"` / `True` / `True` / `"Lax"` | |
 | `ALGORITHMS` | `["ES256", "RS256"]` | offered in preference order (`none` is never accepted) |
-| `CHALLENGE_MAX_AGE` | `300` | seconds a challenge is valid |
+| `CHALLENGE_MAX_AGE` | `60` | seconds a registration challenge is valid, from when the offer is sent. Refresh challenges last as long as a bound cookie (`BOUND_COOKIE_AGE + BOUND_COOKIE_GRACE`) |
 | `CACHE_ALIAS` | `"default"` | cache that makes challenges single-use; use a shared cache in production |
 | `SCOPE_ORIGIN` | `None` | `scope.origin` |
 | `SCOPE_INCLUDE_SITE` | `False` | `scope.include_site` |

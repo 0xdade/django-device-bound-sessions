@@ -340,14 +340,95 @@ def test_refresh_challenge_for_other_session_rejected(registered, client):
     assert response.status_code == 400
 
 
-def test_stale_refresh_challenge_gets_new_challenge(registered, client):
+def test_stale_refresh_challenge_gets_new_challenge(registered, client, clock):
     challenge = new_refresh_challenge(registered.session_id)
-    with override_settings(DBSC={"CHALLENGE_MAX_AGE": 0}):
-        time.sleep(1.1)
-        response = client.post(
-            "/dbsc/refresh/", headers=refresh_headers(registered, registered.make_proof(challenge))
-        )
+    clock(631)  # past BOUND_COOKIE_AGE + BOUND_COOKIE_GRACE
+    response = client.post(
+        "/dbsc/refresh/", headers=refresh_headers(registered, registered.make_proof(challenge))
+    )
     assert response.status_code == 403
+    assert CHALLENGE_HEADER in response.headers
+
+
+# --- Challenge lifetimes -------------------------------------------------------
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """Move the clock (as Django's signing sees it) forward without sleeping."""
+    import time
+
+    offset = [0.0]
+    real_time = time.time
+    monkeypatch.setattr(time, "time", lambda: real_time() + offset[0])
+
+    def advance(seconds: float) -> None:
+        offset[0] += seconds
+
+    return advance
+
+
+def test_challenge_sent_ahead_lasts_until_the_cookie_expires(registered, clock):
+    """The cached challenge must still work when the cookie expires (600s)."""
+    clock(600)
+    registered.expire_bound_cookie()
+    assert registered.get("/").json()["bound"] is True
+    assert [r.status_code for r in registered.last_refresh_responses] == [200]
+
+
+def test_every_refresh_sends_the_next_challenge_ahead(registered, clock):
+    for _ in range(3):
+        clock(600)
+        registered.expire_bound_cookie()
+        assert registered.get("/").json()["bound"] is True
+        assert [r.status_code for r in registered.last_refresh_responses] == [200]
+
+
+def test_challenge_sent_ahead_expires_with_the_cookie_grace(registered, clock):
+    """Past BOUND_COOKIE_AGE + BOUND_COOKIE_GRACE (630s), fall back to a 403."""
+    clock(631)
+    registered.expire_bound_cookie()
+    assert registered.get("/").json()["bound"] is True
+    assert [r.status_code for r in registered.last_refresh_responses] == [403, 200]
+
+
+def test_challenge_from_a_403_lasts_as_long_as_a_cookie(registered, client, clock):
+    challenge = new_refresh_challenge(registered.session_id)  # as sent with a 403
+    clock(600)
+    proof = registered.make_proof(challenge)
+    response = client.post("/dbsc/refresh/", headers=refresh_headers(registered, proof))
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(("elapsed", "status"), [(59, 200), (61, 400)])
+def test_registration_challenge_lasts_challenge_max_age(client, user, clock, elapsed, status):
+    """Registration challenges expire after CHALLENGE_MAX_AGE (60s)."""
+    browser, path, challenge = offered(client, user)
+    clock(elapsed)
+    proof = browser.make_proof(challenge, include_jwk=True)
+    assert client.post(path, headers={RESPONSE_HEADER: proof}).status_code == status
+
+
+def test_replay_protection_covers_the_whole_lifetime(registered, client, monkeypatch):
+    """A used challenge must be remembered for as long as it could be valid."""
+    from django.core.cache import caches
+
+    from django_device_bound_sessions.challenges import refresh_challenge_lifetime
+
+    timeouts: list[float | None] = []
+    cache = caches["default"]
+    real_add = cache.add
+
+    def add(
+        key: str, value: object, timeout: float | None = None, version: int | None = None
+    ) -> bool:
+        timeouts.append(timeout)
+        return real_add(key, value, timeout=timeout, version=version)
+
+    monkeypatch.setattr(cache, "add", add)
+    proof = registered.make_proof(new_refresh_challenge(registered.session_id))
+    client.post("/dbsc/refresh/", headers=refresh_headers(registered, proof))
+    assert timeouts == [refresh_challenge_lifetime() + 60]
 
 
 def test_refresh_requires_session_id_header(registered, client):

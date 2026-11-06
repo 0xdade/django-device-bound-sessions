@@ -71,8 +71,11 @@ DEFAULTS: DBSCConfig = {
     # Algorithms offered in Secure-Session-Registration, in preference order.
     # "none" is intentionally not supported.
     "ALGORITHMS": ["ES256", "RS256"],
-    # How long (seconds) a registration/refresh challenge stays valid.
-    "CHALLENGE_MAX_AGE": 300,
+    # How long (seconds) a registration challenge stays valid, counted from
+    # when the offer is sent. The browser answers within seconds; keep it short,
+    # as the session isn't protected until it's bound. (Refresh challenges last
+    # as long as a bound cookie: AGE + GRACE.)
+    "CHALLENGE_MAX_AGE": 60,
     # Cache alias used to make challenges single-use (replay protection).
     "CACHE_ALIAS": "default",
     # --- Session configuration sent to the browser -----------------------

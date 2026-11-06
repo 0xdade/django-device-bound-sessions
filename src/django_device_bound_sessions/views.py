@@ -98,7 +98,9 @@ def register(request: HttpRequest) -> HttpResponseBase:
 
     response = JsonResponse(build_session_config(binding.session_id))
     set_bound_cookie(response, binding.session_id)
-    # Pre-seed a challenge so the first refresh needs no extra round trip.
+    # Send the next challenge ahead: the browser caches it and signs it on its
+    # first refresh, skipping the 403 round trip. It stays valid as long as the
+    # bound cookie does (see refresh_challenge_lifetime).
     response.headers[CHALLENGE_HEADER] = challenge_header_value(binding.session_id)
     return response
 
