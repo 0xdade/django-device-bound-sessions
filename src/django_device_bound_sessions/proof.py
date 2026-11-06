@@ -94,7 +94,9 @@ def _load_key(jwk: object, algorithm: str) -> PublicKey:
     if isinstance(key, rsa.RSAPublicKey) and key.key_size < MIN_RSA_BITS:
         raise ProofError(f"RSA keys must be at least {MIN_RSA_BITS} bits")
     if not isinstance(key, (rsa.RSAPublicKey, ec.EllipticCurvePublicKey)):
-        raise ProofError("JWK is not a public key")
+        # Unreachable today: private JWKs were rejected above. Kept so a change
+        # there can never let a non-public key through.
+        raise ProofError("JWK is not a public key")  # pragma: no cover
     return key
 
 
@@ -130,7 +132,8 @@ def _decode(token: str, key: PublicKey, algorithm: str) -> dict[str, Any]:
     except jwt.exceptions.InvalidTokenError as exc:
         raise ProofError(f"Proof verification failed: {exc}") from exc
     if not isinstance(claims.get("jti"), str):
-        raise ProofError("jti must be a string")
+        # PyJWT already rejects a non-string jti; don't rely on that alone.
+        raise ProofError("jti must be a string")  # pragma: no cover
     return claims
 
 

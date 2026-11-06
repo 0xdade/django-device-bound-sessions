@@ -16,6 +16,17 @@ def whoami(request: DBSCHttpRequest) -> JsonResponse:
     )
 
 
+async def async_whoami(request: DBSCHttpRequest) -> JsonResponse:
+    """Async views get the user via request.auser(); enforcement must cover it."""
+    user = await request.auser()
+    return JsonResponse(
+        {
+            "user": user.get_username() if user.is_authenticated else None,
+            "bound": request.dbsc.bound,
+        }
+    )
+
+
 @dbsc_exempt
 def exempt_whoami(request: DBSCHttpRequest) -> JsonResponse:
     return whoami(request)
@@ -32,6 +43,7 @@ def logout_view(request: HttpRequest) -> JsonResponse:
 
 urlpatterns: list[URLPattern | URLResolver] = [
     path("", whoami),
+    path("async/", async_whoami),
     path("exempt/", exempt_whoami),
     path("redirect/", redirect_home),
     path("logout/", logout_view),

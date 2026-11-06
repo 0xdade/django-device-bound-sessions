@@ -209,6 +209,7 @@ def test_private_page(client, user):
 uv sync
 uv run pre-commit install   # ruff lint + format and zizmor on every commit
 uv run pytest
+uv run pytest --cov          # with line + branch coverage (fails below 95%)
 uv run mypy
 uv run pyright
 uv run ty check
@@ -216,8 +217,8 @@ uv run ty check
 
 CI (`.github/workflows/ci.yml`) runs on pushes to `main` and on pull requests:
 
-- **Tests** on Python 3.12–3.15 with the latest Django 6.1.x, and Python 3.12–3.14 with the latest
-  Django 5.2.x (LTS). There's also a run against the lowest versions allowed by `pyproject.toml`
+- **Tests**, with branch coverage, on Python 3.12–3.15 with the latest Django 6.1.x, and Python
+  3.12–3.14 with the latest Django 5.2.x (LTS). There's also a run against the lowest versions allowed by `pyproject.toml`
   (Django 5.2.0, PyJWT 2.10.0).
 - **Pre-commit** on every file: `ruff check` + `ruff format`, and [zizmor](https://docs.zizmor.sh/)
   for the workflows and Dependabot config. In CI, zizmor also runs its online audits, such as

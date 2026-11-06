@@ -55,8 +55,9 @@ jobs:
         run: |
           uv pip install "django~=${DJANGO_SERIES}.0"
           uv pip show django | grep -E '^(Name|Version)'
-      - name: Run tests
-        run: uv run --no-sync pytest
+      - name: Run tests with coverage
+        # Branch coverage of the library; fails below fail_under in pyproject.toml.
+        run: uv run --no-sync pytest --cov --cov-report=term-missing
 
   test-lowest:
     # Install the oldest versions allowed by our declared dependency ranges

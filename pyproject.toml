@@ -21,11 +21,13 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "coverage[toml]>=7.17",
     "django-stubs[compatible-mypy]>=6.1.2",
     "mypy>=2.4",
     "pre-commit>=4.7",
     "pyright[nodejs]>=1.1.414",
     "pytest>=8",
+    "pytest-cov>=7.1",
     "pytest-django>=4.14",
     "ty>=0.0.98",
 ]
@@ -128,3 +130,18 @@ unused-ignore-comment = "error"
 
 [tool.ty.terminal]
 error-on-warning = true
+
+[tool.coverage.run]
+source = ["django_device_bound_sessions"]
+branch = true
+
+[tool.coverage.report]
+# Floor for CI; the suite currently sits at ~99%. Raise it as coverage grows.
+fail_under = 95
+show_missing = true
+skip_covered = false
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]

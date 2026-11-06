@@ -14,5 +14,11 @@ wheels/
 .pytest_cache/
 .ruff_cache/
 
+# Coverage data and reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Django (e.g. the example project's database)
 *.sqlite3
