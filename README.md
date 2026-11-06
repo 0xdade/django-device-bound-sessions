@@ -2,15 +2,11 @@
 
 [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2F0xdade.github.io%2Fdjango-device-bound-sessions%2Fcoverage%2Fbadge.json)](https://0xdade.github.io/django-device-bound-sessions/coverage/)
 
-[Device Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials)
-(DBSC) for Django. If someone steals a user's session cookie, it stops working on any other device.
+[Device Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials) (DBSC) for Django. If someone steals a user's session cookie, it stops working on any other device.
 
 ## How it works
 
-With DBSC, a supporting browser (Chrome) creates a key pair in the device's secure hardware when a
-user logs in. The private key never leaves the device. The library adds a second, **short-lived
-"bound" cookie** alongside Django's normal session cookie. A browser can only get a new bound cookie
-by signing a server challenge with that key.
+With DBSC, a supporting browser (Chrome) creates a key pair in the device's secure hardware when a user logs in. The private key never leaves the device. The library adds a second, **short-lived "bound" cookie** alongside Django's normal session cookie. A browser can only get a new bound cookie by signing a server challenge with that key.
 
 ```
 login ──► response carries  Secure-Session-Registration: (ES256 RS256);path="/dbsc/register/";challenge="…"
@@ -24,19 +20,14 @@ browser ──► POST /dbsc/refresh/   Sec-Secure-Session-Id + Secure-Session-R
 server  ◄── 200  Set-Cookie: dbsc_bound=…
 ```
 
-Once a Django session is bound, the middleware rejects any request that lacks a valid bound cookie
-(by default it treats the request as anonymous). An attacker holding only `sessionid` has no key, so
-they can't refresh and are locked out within `BOUND_COOKIE_AGE` seconds.
+Once a Django session is bound, the middleware rejects any request that lacks a valid bound cookie (by default it treats the request as anonymous). An attacker holding only `sessionid` has no key, so they can't refresh and are locked out within `BOUND_COOKIE_AGE` seconds.
 
-Browsers without DBSC support ignore the registration header. Their sessions never become bound and
-keep working exactly as they do today.
+Browsers without DBSC support ignore the registration header. Their sessions never become bound and keep working exactly as they do today.
 
-There is no database model. The device binding (public key, algorithm, and audit fields) is stored
-in the Django session itself, so:
+There is no database model. The device binding (public key, algorithm, and audit fields) is stored in the Django session itself, so:
 
 - it works with any `SESSION_ENGINE` (db, cache, cached_db, file, signed_cookies);
-- it lives exactly as long as the session does. Logging out or flushing the session removes the
-  binding, and the browser's next refresh gets `{"continue": false}`.
+- it lives exactly as long as the session does. Logging out or flushing the session removes the binding, and the browser's next refresh gets `{"continue": false}`.
 
 ## Installation
 
@@ -70,8 +61,7 @@ urlpatterns = [
 ]
 ```
 
-That's it: no migrations. Any `django.contrib.auth.login()` call offers DBSC registration on the next non-redirect
-response.
+That's it: no migrations. Any `django.contrib.auth.login()` call offers DBSC registration on the next non-redirect response.
 
 ## Using it in views
 
@@ -84,8 +74,7 @@ Every request gets `request.dbsc`:
 | `request.dbsc.registered` | the session has a binding |
 | `request.dbsc.bound` | request carried a valid bound cookie |
 
-A `DeviceBinding` has `session_id`, `algorithm`, `public_key` (JWK), `thumbprint` (RFC 7638),
-`user_agent`, `created_at`, and `last_refreshed_at`.
+A `DeviceBinding` has `session_id`, `algorithm`, `public_key` (JWK), `thumbprint` (RFC 7638), `user_agent`, `created_at`, and `last_refreshed_at`.
 
 Helpers:
 
@@ -105,8 +94,7 @@ To end a binding, end the session (`logout()`, `request.session.flush()`).
 
 ## Type checking
 
-The package ships `py.typed` and is checked with mypy (strict, with django-stubs), pyright (strict)
-and [ty](https://docs.astral.sh/ty/). You don't have to change how your views are typed. Pick whichever of these fits your code:
+The package ships `py.typed` and is checked with mypy (strict, with django-stubs), pyright (strict), and [ty](https://docs.astral.sh/ty/). You don't have to change how your views are typed. Pick whichever of these fits your code:
 
 ```python
 from django.http import HttpRequest
@@ -131,12 +119,9 @@ class AppRequest(DBSCRequestMixin, HttpRequest):
     tenant: Tenant
 ```
 
-If the middleware isn't installed, `get_dbsc_state()` raises `ImproperlyConfigured` instead of
-quietly reporting an unbound session. `get_binding(request)` reads the session directly and works
-without the middleware.
+If the middleware isn't installed, `get_dbsc_state()` raises `ImproperlyConfigured` instead of quietly reporting an unbound session. `get_binding(request)` reads the session directly and works without the middleware.
 
-`typecheck/downstream.py` pins these types down for apps using the library. mypy, pyright and ty all
-check it strictly, so a change that loosens or breaks them fails the check.
+`typecheck/downstream.py` pins these types down for apps using the library. mypy, pyright and ty all check it strictly, so a change that loosens or breaks them fails the check.
 
 Annotate your settings with `DBSCConfig` to get misspelled keys and wrong value types flagged:
 
@@ -170,24 +155,12 @@ Set these in a `DBSC` dict in your settings:
 
 ## Security notes
 
-- **A binding is permanent for the life of the session.** The first device to register owns the
-  session. Registration is refused (409) on a session that is already bound, so a stolen session
-  cookie can't be used to move the session onto another device. To use a new device, log in again,
-  which creates a new session.
-- **The window before binding is unprotected, and it's kept short.** Until registration completes,
-  whoever holds the session cookie could receive the registration offer. Offers are only sent for
-  `OFFER_MAX_AGE` seconds after login and are used once. DBSC can't protect a session that was
-  stolen before it was bound; like the spec, this library assumes the device wasn't compromised at
-  login time.
-- Challenges are signed with `SECRET_KEY` and expire. Each one is accepted once, enforced through
-  the cache. Registration challenges are tied to the Django session that received them.
-- A refresh with an invalid proof is rejected, but the DBSC session stays alive. Otherwise anyone
-  holding a stolen cookie could knock the real device off.
-- A refresh without the matching Django session (the user logged out, the session expired, or the
-  binding was replaced) returns `{"continue": false}`, which tells the browser to stop. It never
-  changes the session it was sent with.
-- DBSC endpoints are CSRF-exempt, because the browser calls them without a token. The signed
-  challenge authenticates them instead. Responses are `no-store` and `X-Frame-Options: DENY`.
+- **A binding is permanent for the life of the session.** The first device to register owns the session. Registration is refused (409) on a session that is already bound, so a stolen session cookie can't be used to move the session onto another device. To use a new device, log in again, which creates a new session.
+- **The window before binding is unprotected, and it's kept short.** Until registration completes, whoever holds the session cookie could receive the registration offer. Offers are only sent for `OFFER_MAX_AGE` seconds after login and are used once. DBSC can't protect a session that was stolen before it was bound; like the spec, this library assumes the device wasn't compromised at login time.
+- Challenges are signed with `SECRET_KEY` and expire. Each one is accepted once, enforced through the cache. Registration challenges are tied to the Django session that received them.
+- A refresh with an invalid proof is rejected, but the DBSC session stays alive. Otherwise anyone holding a stolen cookie could knock the real device off.
+- A refresh without the matching Django session (the user logged out, the session expired, or the binding was replaced) returns `{"continue": false}`, which tells the browser to stop. It never changes the session it was sent with.
+- DBSC endpoints are CSRF-exempt, because the browser calls them without a token. The signed challenge authenticates them instead. Responses are `no-store` and `X-Frame-Options: DENY`.
 
 ## Testing your app
 
@@ -221,20 +194,13 @@ CI (`.github/workflows/ci.yml`) runs on pushes to `main` and on pull requests:
 
 - **Tests** on Python 3.12–3.15 with the latest Django 6.1.x, and Python 3.12–3.14 with the latest
   Django 5.2.x (LTS).
-- **Coverage**: branch coverage with a 95% floor. The run summary shows the coverage table, and the
-  full HTML report is attached as the `coverage-report` artifact. A separate workflow
-  (`pages.yml`) publishes the report and the README badge's data to GitHub Pages on pushes to
-  `main`. There's also a run against the lowest versions allowed by `pyproject.toml`
-  (Django 5.2.0, PyJWT 2.10.0).
-- **Pre-commit** on every file: `ruff check` + `ruff format`, and [zizmor](https://docs.zizmor.sh/)
-  for the workflows and Dependabot config. In CI, zizmor also runs its online audits, such as
-  checking that each pinned action SHA is a real commit in that action's repository.
+- **Coverage**: branch coverage with a 95% floor. The run summary shows the coverage table, and the full HTML report is attached as the `coverage-report` artifact. A separate workflow (`pages.yml`) publishes the report and the README badge's data to GitHub Pages on pushes to `main`. There's also a run against the lowest versions allowed by `pyproject.toml` (Django 5.2.0, PyJWT 2.10.0).
+- **Pre-commit** on every file: `ruff check` + `ruff format`, and [zizmor](https://docs.zizmor.sh/) for the workflows and Dependabot config. In CI, zizmor also runs its online audits, such as checking that each pinned action SHA is a real commit in that action's repository.
 - **mypy** (strict, with django-stubs), **pyright** (strict on `src/` and `typecheck/`) and **ty**.
 
 Actions are pinned to commit SHAs. Dependabot or Renovate can keep them up to date.
 
-Run `uv run pre-commit run --all-files` to lint and format everything by hand. Ruff isn't a
-project dependency. It runs only through pre-commit, so the hook's `rev` in
+Run `uv run pre-commit run --all-files` to lint and format everything by hand. Ruff isn't a project dependency. It runs only through pre-commit, so the hook's `rev` in
 `.pre-commit-config.yaml` is the single ruff version used locally and in CI.
 
 ### Demo project
@@ -245,9 +211,7 @@ uv run example/manage.py createsuperuser
 uv run example/manage.py runserver
 ```
 
-Open http://localhost:8000 in Chrome with DBSC enabled and log in. The home page shows the binding
-status. The demo's bound cookie lives 60 seconds, and an **Expire bound cookie** button forces a
-refresh, which you can watch in DevTools → Application → Device Bound Sessions.
+Open http://localhost:8000 in Chrome with DBSC enabled and log in. The home page shows the binding status. The demo's bound cookie lives 60 seconds, and an **Expire bound cookie** button forces a refresh, which you can watch in DevTools → Application → Device Bound Sessions.
 
 DBSC requires HTTPS, except on `localhost`.
 
