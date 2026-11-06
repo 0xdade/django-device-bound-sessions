@@ -85,7 +85,7 @@ jobs:
         run: python -m pytest
 
   pre-commit:
-    name: Pre-commit (ruff lint + format)
+    name: pre-commit
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -107,6 +107,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
       - name: Run pre-commit on all files
+        env:
+          # Lets zizmor run its online audits (e.g. impostor-commit, which
+          # verifies pinned SHAs). The job's token is read-only.
+          GH_TOKEN: ${{ github.token }}
         run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure
 
   mypy:

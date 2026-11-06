@@ -6,3 +6,11 @@ repos:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.32.0
+    hooks:
+      # Security audit for the workflows, dependabot.yml, and this file.
+      # Runs offline audits locally; with GH_TOKEN set (as in CI) it also
+      # runs online audits, e.g. verifying pinned action SHAs.
+      - id: zizmor

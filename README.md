@@ -207,7 +207,7 @@ def test_private_page(client, user):
 
 ```bash
 uv sync
-uv run pre-commit install   # ruff lint + format on every commit
+uv run pre-commit install   # ruff lint + format and zizmor on every commit
 uv run pytest
 uv run mypy
 uv run pyright
@@ -218,7 +218,9 @@ CI (`.github/workflows/ci.yml`) runs on pushes to `main` and on pull requests:
 - **Tests** on Python 3.12–3.15 with the latest Django 6.1.x, and Python 3.12–3.14 with the latest
   Django 5.2.x (LTS). There's also a run against the lowest versions allowed by `pyproject.toml`
   (Django 5.2.0, PyJWT 2.10.0).
-- **Pre-commit** (`ruff check` + `ruff format`) on every file.
+- **Pre-commit** on every file: `ruff check` + `ruff format`, and [zizmor](https://docs.zizmor.sh/)
+  for the workflows and Dependabot config. In CI, zizmor also runs its online audits, such as
+  checking that each pinned action SHA is a real commit in that action's repository.
 - **mypy** (strict, with django-stubs) and **pyright** (strict on `src/` and `typecheck/`).
 
 Actions are pinned to commit SHAs. Dependabot or Renovate can keep them up to date.
