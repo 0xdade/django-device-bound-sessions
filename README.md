@@ -1,5 +1,7 @@
 # django-device-bound-sessions
 
+[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2F0xdade.github.io%2Fdjango-device-bound-sessions%2Fcoverage%2Fbadge.json)](https://0xdade.github.io/django-device-bound-sessions/coverage/)
+
 [Device Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials)
 (DBSC) for Django. If someone steals a user's session cookie, it stops working on any other device.
 
@@ -217,8 +219,12 @@ uv run ty check
 
 CI (`.github/workflows/ci.yml`) runs on pushes to `main` and on pull requests:
 
-- **Tests**, with branch coverage, on Python 3.12–3.15 with the latest Django 6.1.x, and Python
-  3.12–3.14 with the latest Django 5.2.x (LTS). There's also a run against the lowest versions allowed by `pyproject.toml`
+- **Tests** on Python 3.12–3.15 with the latest Django 6.1.x, and Python 3.12–3.14 with the latest
+  Django 5.2.x (LTS).
+- **Coverage**: branch coverage with a 95% floor. The run summary shows the coverage table, and the
+  full HTML report is attached as the `coverage-report` artifact. A separate workflow
+  (`pages.yml`) publishes the report and the README badge's data to GitHub Pages on pushes to
+  `main`. There's also a run against the lowest versions allowed by `pyproject.toml`
   (Django 5.2.0, PyJWT 2.10.0).
 - **Pre-commit** on every file: `ruff check` + `ruff format`, and [zizmor](https://docs.zizmor.sh/)
   for the workflows and Dependabot config. In CI, zizmor also runs its online audits, such as

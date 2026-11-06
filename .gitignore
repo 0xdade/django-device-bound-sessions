@@ -19,6 +19,7 @@ wheels/
 .coverage.*
 htmlcov/
 coverage.xml
+coverage.json
 
 # Django (e.g. the example project's database)
 *.sqlite3

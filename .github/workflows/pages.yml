@@ -1,0 +1,71 @@
+name: Coverage report
+
+# Publishes the HTML coverage report and the README badge's data to GitHub
+# Pages on every push to main:
+#   https://<owner>.github.io/<repo>/coverage/            (report)
+#   https://<owner>.github.io/<repo>/coverage/badge.json  (shields.io endpoint)
+#
+# This lives apart from ci.yml on purpose: release.yml calls ci.yml with
+# read-only permissions, and GitHub refuses to start a called workflow that
+# contains any job asking for more (even a job that would be skipped).
+#
+# One-time setup: Settings > Pages > Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One publish at a time, in push order. Never cancel a run part-way through a
+# deployment; a newer push just queues behind it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  UV_VERSION: "0.13.7"
+
+jobs:
+  build:
+    name: Build coverage site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: auto
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Run tests with branch coverage
+        run: uv run --no-sync pytest --cov --cov-report=html --cov-report=json
+      - name: Build site
+        run: |
+          mkdir -p site/coverage
+          cp -R htmlcov/. site/coverage/
+          uv run --no-sync python .github/scripts/coverage_badge.py coverage.json site/coverage/badge.json
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site/
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write # create the Pages deployment
+      id-token: write # prove the deployment comes from this workflow
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}coverage/
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
