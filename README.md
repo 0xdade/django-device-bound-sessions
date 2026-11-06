@@ -103,8 +103,8 @@ To end a binding, end the session (`logout()`, `request.session.flush()`).
 
 ## Type checking
 
-The package ships `py.typed` and passes `mypy --strict` (with django-stubs). You don't have to
-change how your views are typed. Pick whichever of these fits your code:
+The package ships `py.typed` and is checked with mypy (strict, with django-stubs), pyright (strict)
+and [ty](https://docs.astral.sh/ty/). You don't have to change how your views are typed. Pick whichever of these fits your code:
 
 ```python
 from django.http import HttpRequest
@@ -133,8 +133,8 @@ If the middleware isn't installed, `get_dbsc_state()` raises `ImproperlyConfigur
 quietly reporting an unbound session. `get_binding(request)` reads the session directly and works
 without the middleware.
 
-`typecheck/downstream.py` pins these types down for apps using the library. `uv run mypy` checks it
-strictly, so a change that loosens or breaks them fails the check.
+`typecheck/downstream.py` pins these types down for apps using the library. mypy, pyright and ty all
+check it strictly, so a change that loosens or breaks them fails the check.
 
 Annotate your settings with `DBSCConfig` to get misspelled keys and wrong value types flagged:
 
@@ -211,6 +211,7 @@ uv run pre-commit install   # ruff lint + format and zizmor on every commit
 uv run pytest
 uv run mypy
 uv run pyright
+uv run ty check
 ```
 
 CI (`.github/workflows/ci.yml`) runs on pushes to `main` and on pull requests:
@@ -221,7 +222,7 @@ CI (`.github/workflows/ci.yml`) runs on pushes to `main` and on pull requests:
 - **Pre-commit** on every file: `ruff check` + `ruff format`, and [zizmor](https://docs.zizmor.sh/)
   for the workflows and Dependabot config. In CI, zizmor also runs its online audits, such as
   checking that each pinned action SHA is a real commit in that action's repository.
-- **mypy** (strict, with django-stubs) and **pyright** (strict on `src/` and `typecheck/`).
+- **mypy** (strict, with django-stubs), **pyright** (strict on `src/` and `typecheck/`) and **ty**.
 
 Actions are pinned to commit SHAs. Dependabot or Renovate can keep them up to date.
 

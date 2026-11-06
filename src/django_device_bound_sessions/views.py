@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.clickjacking import xframe_options_deny
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods
 
 from . import sf
 from .api import (
@@ -45,7 +45,10 @@ View = Callable[[HttpRequest], HttpResponseBase]
 def _endpoint(view: View) -> View:
     # The browser calls these directly, without a CSRF token; the signed
     # challenge in the proof is what authenticates the request.
-    return csrf_exempt(require_POST(never_cache(xframe_options_deny(dbsc_exempt(view)))))
+    # require_http_methods(["POST"]) is exactly require_POST, but django-stubs
+    # types it as a generic function, which every type checker (incl. ty) can solve.
+    post_only = require_http_methods(["POST"])
+    return csrf_exempt(post_only(never_cache(xframe_options_deny(dbsc_exempt(view)))))
 
 
 def _error(status: int, message: str) -> HttpResponse:

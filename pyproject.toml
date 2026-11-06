@@ -27,6 +27,7 @@ dev = [
     "pyright[nodejs]>=1.1.414",
     "pytest>=8",
     "pytest-django>=4.14",
+    "ty>=0.0.98",
 ]
 
 [build-system]
@@ -92,9 +93,6 @@ django_settings_module = "tests.settings"
 module = ["tests.*"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
-# Tests index into Optional values they've just produced; a None there fails
-# the test anyway, so narrowing each one first is pure noise.
-disable_error_code = ["index", "union-attr"]
 
 [tool.pyright]
 venvPath = "."
@@ -109,8 +107,24 @@ reportUnnecessaryTypeIgnoreComment = "error"
 executionEnvironments = [
     { root = "src" },
     { root = "typecheck", extraPaths = ["src"] },
-    # Same policy as mypy: tests may index into Optional values they've just
-    # produced, since a None there fails the test anyway.
-    { root = "tests", extraPaths = ["src", "."], reportOptionalSubscript = false, reportOptionalMemberAccess = false },
+    { root = "tests", extraPaths = ["src", "."] },
     { root = "example", extraPaths = ["src"] },
 ]
+
+[tool.ty.environment]
+python = ".venv"
+python-version = "3.12"
+# Import roots: the package, the repo root (for `tests`), and the example
+# project (for `demo`).
+root = ["src", ".", "example"]
+
+[tool.ty.src]
+include = ["src", "tests", "example", "typecheck"]
+
+[tool.ty.rules]
+# Each "# ty: ignore[...]" in typecheck/ marks an error that must be
+# reported; fail if one goes unused, as with mypy and pyright.
+unused-ignore-comment = "error"
+
+[tool.ty.terminal]
+error-on-warning = true

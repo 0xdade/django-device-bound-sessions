@@ -7,7 +7,7 @@ existing Django code, so it uses ``get_dbsc_state()``. Both type-check.
 
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods
 
 from django_device_bound_sessions.api import DBSCHttpRequest, get_dbsc_state
 from django_device_bound_sessions.cookies import delete_bound_cookie
@@ -41,7 +41,7 @@ def status(request: HttpRequest) -> JsonResponse:
     )
 
 
-@require_POST
+@require_http_methods(["POST"])  # same as @require_POST; types under ty too
 def expire_bound_cookie(request: HttpRequest) -> HttpResponseRedirect:
     """Drop the bound cookie so Chrome has to refresh it with its key."""
     response = redirect("home")

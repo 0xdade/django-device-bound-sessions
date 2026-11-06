@@ -42,15 +42,21 @@ updates:
       semver-major-days: 14
       semver-minor-days: 7
       semver-patch-days: 3
+    # A dependency goes to the first group it matches, so order matters:
+    # specific groups first, the catch-all last.
     groups:
       # mypy and django-stubs are version-coupled
       # (django-stubs[compatible-mypy] caps mypy), so update them together.
+      # ty is pre-1.0, so its updates are the likeliest to fail CI; keeping
+      # them here stops them blocking the other groups.
       type-checkers:
-        patterns: ["mypy", "django-stubs", "django-stubs-ext", "pyright"]
+        patterns: ["mypy", "django-stubs", "django-stubs-ext", "pyright", "ty"]
+      # Our runtime dependencies get their own PR, so a Django or PyJWT
+      # change that breaks something is easy to spot.
       runtime:
         patterns: ["django", "pyjwt", "cryptography"]
+      # Everything else (pytest, pytest-django, pre-commit, ...).
       dev-tools:
         patterns: ["*"]
-        exclude-patterns: ["mypy", "django-stubs", "django-stubs-ext", "pyright", "django", "pyjwt", "cryptography"]
     commit-message:
       prefix: deps

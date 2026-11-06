@@ -193,7 +193,7 @@ class _Parser:
     def parse_boolean(self) -> bool:
         self.i += 1
         ch = self.peek()
-        if ch not in ("0", "1") or not ch:
+        if ch not in ("0", "1"):
             raise SFError("Invalid boolean")
         self.i += 1
         return ch == "1"

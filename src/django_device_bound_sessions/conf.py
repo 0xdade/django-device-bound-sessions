@@ -102,6 +102,11 @@ DEFAULTS: DBSCConfig = {
 }
 
 
+# DEFAULTS is a TypedDict so its keys and values are checked; lookups by a
+# runtime setting name go through this plain-dict copy instead.
+_DEFAULTS_BY_NAME: dict[str, object] = dict(DEFAULTS)
+
+
 class DBSCSettings:
     """Typed accessors for the ``DBSC`` settings dict, with defaults applied."""
 
@@ -127,10 +132,10 @@ class DBSCSettings:
     ENFORCEMENT: Literal["anonymous", "logout", "off"]
 
     def __getattr__(self, name: str) -> Any:
-        if name not in DEFAULTS:
+        if name not in _DEFAULTS_BY_NAME:
             raise AttributeError(f"Unknown DBSC setting: {name}")
         configured: dict[str, Any] = getattr(settings, "DBSC", {})
-        return configured.get(name, DEFAULTS[name])  # type: ignore[literal-required]
+        return configured.get(name, _DEFAULTS_BY_NAME[name])
 
 
 dbsc_settings = DBSCSettings()

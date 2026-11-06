@@ -1,9 +1,10 @@
 """Downstream typing contract. Checked by ``uv run mypy``, never executed.
 
 Written the way an app would use django-device-bound-sessions, in mypy strict mode. Each
-``assert_type`` pins down an exact type. Each ``# type: ignore[code]`` marks a
-mistake that MUST be rejected: with ``warn_unused_ignores`` (on in strict
-mode), mypy fails if that error ever stops being reported.
+``assert_type`` pins down an exact type. Each ``# type: ignore[code]`` (mypy,
+pyright) and ``# ty: ignore[rule]`` (ty) marks a mistake that MUST be rejected.
+All three checkers are configured to fail on unused ignores, so the check
+fails if one of those errors ever stops being reported.
 """
 
 from datetime import datetime
@@ -41,13 +42,13 @@ def plain_view(request: HttpRequest) -> HttpResponse:
         assert_type(state.binding.last_refreshed_at, datetime | None)
 
     # A plain HttpRequest doesn't claim to have .dbsc.
-    request.dbsc  # type: ignore[attr-defined]
+    request.dbsc  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     return HttpResponse()
 
 
 def unnarrowed(request: HttpRequest) -> str:
     # The binding is optional and must be narrowed before use.
-    return get_dbsc_state(request).binding.algorithm  # type: ignore[union-attr]
+    return get_dbsc_state(request).binding.algorithm  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
 
 
 # --- 2. Views typed with DBSCHttpRequest --------------------------------------
@@ -58,7 +59,7 @@ def dbsc_view(request: DBSCHttpRequest) -> HttpResponse:
     # Still an HttpRequest: helpers typed for HttpRequest accept it.
     assert_type(get_dbsc_state(request), DBSCState)
     # Middleware internals are not part of the public type.
-    request._dbsc_exempt  # type: ignore[attr-defined]
+    request._dbsc_exempt  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     return HttpResponse()
 
 
@@ -90,14 +91,14 @@ def exempt_view(request: HttpRequest, pk: int) -> HttpResponse:
 
 def call_exempt(request: HttpRequest) -> None:
     assert_type(exempt_view(request, 1), HttpResponse)
-    exempt_view(request, "1")  # type: ignore[arg-type]
+    exempt_view(request, "1")  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
 
 # --- Settings ----------------------------------------------------------------
 
 DBSC: DBSCConfig = {"BOUND_COOKIE_AGE": 300, "ENFORCEMENT": "off"}
-BAD_VALUE: DBSCConfig = {"ENFORCEMENT": "sometimes"}  # type: ignore[typeddict-item]
-BAD_KEY: DBSCConfig = {"ENFORCMENT": "off"}  # type: ignore[typeddict-unknown-key]
+BAD_VALUE: DBSCConfig = {"ENFORCEMENT": "sometimes"}  # type: ignore[typeddict-item]  # ty: ignore[invalid-argument-type]
+BAD_KEY: DBSCConfig = {"ENFORCMENT": "off"}  # type: ignore[typeddict-unknown-key]  # ty: ignore[invalid-key]
 
 # --- All three view styles are valid URL targets ------------------------------
 

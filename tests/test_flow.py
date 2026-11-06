@@ -20,8 +20,15 @@ from django_device_bound_sessions.testing import DBSCBrowser
 pytestmark = pytest.mark.django_db
 
 
-def binding_of(client: Client) -> DeviceBinding | None:
-    return DeviceBinding.from_session(client.session)
+def binding_of(client: Client) -> DeviceBinding:
+    """The client's binding; fails the test if there isn't one."""
+    binding = DeviceBinding.from_session(client.session)
+    assert binding is not None, "session has no device binding"
+    return binding
+
+
+def has_binding(client: Client) -> bool:
+    return DeviceBinding.from_session(client.session) is not None
 
 
 def refresh_headers(browser: DBSCBrowser, proof: str | None = None) -> dict[str, str]:
@@ -72,7 +79,7 @@ def test_registration(client, user, algorithm):
     client.force_login(user)
     browser.get("/")
 
-    config = browser.config
+    config = browser.session_config
     assert config["refresh_url"] == "/dbsc/refresh/"
     assert config["scope"] == {"include_site": False}
     assert config["credentials"] == [
@@ -125,7 +132,7 @@ def test_registration_rejects_forged_challenge(client, user):
         path, headers={RESPONSE_HEADER: browser.make_proof(forged, include_jwk=True)}
     )
     assert response.status_code == 400
-    assert binding_of(client) is None
+    assert not has_binding(client)
 
 
 def test_registration_challenge_is_single_use(client, user):
@@ -262,7 +269,7 @@ def test_enforcement_off(registered, client):
 def test_enforcement_logout(registered, client):
     registered.expire_bound_cookie()
     assert client.get("/").json()["user"] is None
-    assert binding_of(client) is None
+    assert not has_binding(client)
     # The session is gone for good, even with the bound cookie restored.
     assert client.get("/exempt/").json()["user"] is None
 
@@ -380,7 +387,7 @@ def test_refresh_requires_post(registered, client):
 
 def test_logout_terminates(registered, client):
     client.get("/logout/")
-    assert binding_of(client) is None
+    assert not has_binding(client)
     registered.expire_bound_cookie()
     response = registered.refresh()
     assert response.json() == {"continue": False}
@@ -473,17 +480,17 @@ def test_custom_session_config(client, user):
     browser = DBSCBrowser(client)
     client.force_login(user)
     browser.get("/")
-    assert browser.config["scope"] == {
+    assert browser.session_config["scope"] == {
         "include_site": True,
         "origin": "https://example.com",
         "scope_specification": [{"type": "exclude", "domain": "*", "path": "/static"}],
     }
-    assert browser.config["credentials"][0] == {
+    assert browser.session_config["credentials"][0] == {
         "type": "cookie",
         "name": "__Secure-auth",
         "attributes": "Domain=example.com; Path=/; Secure; HttpOnly; SameSite=Lax",
     }
-    assert browser.config["allowed_refresh_initiators"] == ["*.example.com"]
+    assert browser.session_config["allowed_refresh_initiators"] == ["*.example.com"]
 
 
 # --- get_dbsc_state (for views typed against plain HttpRequest) -----------

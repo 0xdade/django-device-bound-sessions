@@ -90,6 +90,13 @@ class DBSCBrowser:
     # -- state ------------------------------------------------------------
 
     @property
+    def session_config(self) -> dict[str, Any]:
+        """The current session config. Raises if the browser isn't registered."""
+        if self.config is None:
+            raise RuntimeError("Not registered: no session config")
+        return self.config
+
+    @property
     def session_id(self) -> str | None:
         return self.config["session_identifier"] if self.config else None
 
