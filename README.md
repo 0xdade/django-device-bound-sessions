@@ -223,8 +223,9 @@ CI (`.github/workflows/ci.yml`) runs on pushes to `main` and on pull requests:
 
 Actions are pinned to commit SHAs. Dependabot or Renovate can keep them up to date.
 
-Run `uv run pre-commit run --all-files` to check everything, or `uv run ruff check --fix . && uv run ruff format .`
-by hand.
+Run `uv run pre-commit run --all-files` to lint and format everything by hand. Ruff isn't a
+project dependency. It runs only through pre-commit, so the hook's `rev` in
+`.pre-commit-config.yaml` is the single ruff version used locally and in CI.
 
 ### Demo project
 

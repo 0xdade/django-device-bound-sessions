@@ -1,0 +1,56 @@
+version: 2
+
+updates:
+  # Workflow actions (pinned by commit SHA with a "# vX.Y.Z" comment).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Let new releases settle before adopting them.
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  # Hook revisions in .pre-commit-config.yaml.
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      pre-commit:
+        patterns: ["*"]
+    commit-message:
+      prefix: pre-commit
+
+  # uv.lock (development environment and CI).
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    # This is a library: only move the lockfile. Never raise the minimum
+    # versions declared in pyproject.toml (e.g. django>=5.2), which are a
+    # compatibility promise to users.
+    versioning-strategy: lockfile-only
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      # mypy and django-stubs are version-coupled
+      # (django-stubs[compatible-mypy] caps mypy), so update them together.
+      type-checkers:
+        patterns: ["mypy", "django-stubs", "django-stubs-ext", "pyright"]
+      runtime:
+        patterns: ["django", "pyjwt", "cryptography"]
+      dev-tools:
+        patterns: ["*"]
+        exclude-patterns: ["mypy", "django-stubs", "django-stubs-ext", "pyright", "django", "pyjwt", "cryptography"]
+    commit-message:
+      prefix: deps
