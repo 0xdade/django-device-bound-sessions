@@ -211,3 +211,21 @@ jobs:
       # Checks src/, tests/, example/ and the typecheck/ downstream contract.
       - name: Run ty
         run: uv run --no-sync ty check
+
+  # The single check to require in branch protection. It depends on every other
+  # job, so the ruleset doesn't need updating when the matrix changes. It runs
+  # even when one of them fails (always()), and passes only if all succeeded:
+  # a failed, cancelled or skipped job fails it.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [test, coverage, test-lowest, pre-commit, mypy, pyright, ty]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check that every CI job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' > /dev/null
