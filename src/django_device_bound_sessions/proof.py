@@ -10,7 +10,7 @@ from typing import Any, cast
 import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
-from . import sf
+from .structured_fields import StructuredFieldError, parse_string_item
 
 #: A JSON Web Key (RFC 7517) as a decoded JSON object.
 type JWK = dict[str, Any]
@@ -46,14 +46,14 @@ class RegistrationProof(Proof):
 def parse_proof_header(value: str | None) -> str:
     """Extract the JWT from a ``Secure-Session-Response`` header.
 
-    The spec makes it an sf-string; Chrome's docs show it bare, so a bare
+    The spec makes it a structured-field string; Chrome's docs show it bare, so a bare
     token is accepted too.
     """
     if not value:
         raise ProofError("Missing Secure-Session-Response header")
     try:
-        token, _params = sf.parse_string_item(value)
-    except sf.SFError as exc:
+        token = parse_string_item(value)
+    except StructuredFieldError as exc:
         raise ProofError(f"Malformed Secure-Session-Response header: {exc}") from exc
     return token
 

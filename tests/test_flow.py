@@ -5,7 +5,6 @@ from django.contrib.auth.models import User
 from django.core import signing
 from django.test import Client, override_settings
 
-from django_device_bound_sessions import sf
 from django_device_bound_sessions.api import (
     CHALLENGE_HEADER,
     REGISTRATION_HEADER,
@@ -15,6 +14,7 @@ from django_device_bound_sessions.api import (
 )
 from django_device_bound_sessions.challenges import REGISTRATION_SALT, new_refresh_challenge
 from django_device_bound_sessions.proof import jwk_thumbprint
+from django_device_bound_sessions.structured_fields import parse_list, serialize_string
 from django_device_bound_sessions.testing import DBSCBrowser
 
 pytestmark = pytest.mark.django_db
@@ -33,9 +33,9 @@ def has_binding(client: Client) -> bool:
 
 def refresh_headers(browser: DBSCBrowser, proof: str | None = None) -> dict[str, str]:
     assert browser.session_id
-    headers = {SESSION_ID_HEADER: sf.serialize_string(browser.session_id)}
+    headers = {SESSION_ID_HEADER: serialize_string(browser.session_id)}
     if proof:
-        headers[RESPONSE_HEADER] = sf.serialize_string(proof)
+        headers[RESPONSE_HEADER] = serialize_string(proof)
     return headers
 
 
@@ -49,7 +49,7 @@ def test_no_offer_for_anonymous(client):
 def test_offer_after_login(client, user):
     client.force_login(user)
     response = client.get("/")
-    [(algs, params)] = sf.parse_list(response.headers[REGISTRATION_HEADER])
+    [(algs, params)] = parse_list(response.headers[REGISTRATION_HEADER])
     assert isinstance(algs, list)
     assert [a for a, _ in algs] == ["ES256", "RS256"]
     assert params["path"] == "/dbsc/register/"
@@ -201,7 +201,7 @@ def test_registration_rejects_disallowed_algorithm(client, user):
     client.force_login(user)
     response = client.get("/")
     assert "RS256" not in response.headers[REGISTRATION_HEADER]
-    _, params = sf.parse_list(response.headers[REGISTRATION_HEADER])[0]
+    _, params = parse_list(response.headers[REGISTRATION_HEADER])[0]
     assert isinstance(params["challenge"], str)
     assert isinstance(params["path"], str)
     proof = browser.make_proof(params["challenge"], include_jwk=True)
@@ -293,7 +293,7 @@ def test_refresh_round_trip(registered, client):
 
     first, second = registered.last_refresh_responses
     assert first.status_code == 403
-    _value, params = sf.parse_list(first.headers[CHALLENGE_HEADER])[0]
+    _value, params = parse_list(first.headers[CHALLENGE_HEADER])[0]
     assert params == {"id": registered.session_id}
     assert second.status_code == 200
     assert second.json()["session_identifier"] == registered.session_id
@@ -355,9 +355,7 @@ def test_refresh_requires_session_id_header(registered, client):
 
 
 def test_refresh_unknown_session_terminates(registered, client):
-    response = client.post(
-        "/dbsc/refresh/", headers={SESSION_ID_HEADER: sf.serialize_string("nope")}
-    )
+    response = client.post("/dbsc/refresh/", headers={SESSION_ID_HEADER: serialize_string("nope")})
     assert response.status_code == 200
     assert response.json() == {"continue": False}
 

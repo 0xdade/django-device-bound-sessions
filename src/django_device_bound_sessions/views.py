@@ -10,7 +10,6 @@ from django.views.decorators.clickjacking import xframe_options_deny
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from . import sf
 from .api import (
     CHALLENGE_HEADER,
     RESPONSE_HEADER,
@@ -35,6 +34,7 @@ from .proof import (
     verify_refresh_proof,
     verify_registration_proof,
 )
+from .structured_fields import StructuredFieldError, parse_string_item
 
 logger = logging.getLogger("django_device_bound_sessions")
 
@@ -107,8 +107,8 @@ def register(request: HttpRequest) -> HttpResponseBase:
 def refresh(request: HttpRequest) -> HttpResponseBase:
     """Refresh endpoint: exchange proof of key possession for a bound cookie."""
     try:
-        session_id, _params = sf.parse_string_item(request.headers.get(SESSION_ID_HEADER, ""))
-    except sf.SFError:
+        session_id = parse_string_item(request.headers.get(SESSION_ID_HEADER, ""))
+    except StructuredFieldError:
         return _error(400, "Missing or malformed Sec-Secure-Session-Id")
 
     # The binding lives in the Django session, so the long-lived session

@@ -10,11 +10,11 @@ from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpRequest
 from django.urls import reverse
 
-from . import sf
 from .challenges import new_refresh_challenge, new_registration_challenge
 from .conf import BINDING_KEY, OFFER_KEY, dbsc_settings
 from .cookies import credential_attributes
 from .proof import JWK
+from .structured_fields import Token, serialize_inner_list, serialize_item
 
 REGISTRATION_HEADER = "Secure-Session-Registration"
 CHALLENGE_HEADER = "Secure-Session-Challenge"
@@ -174,8 +174,8 @@ def refresh_path() -> str:
 
 
 def registration_header_value(request: HttpRequest) -> str:
-    algorithms: list[sf.BareItem] = [sf.Token(a) for a in dbsc_settings.ALGORITHMS if a != "none"]
-    return sf.serialize_inner_list(
+    algorithms: list[str] = [Token(a) for a in dbsc_settings.ALGORITHMS if a != "none"]
+    return serialize_inner_list(
         algorithms,
         {
             "path": registration_path(),
@@ -185,7 +185,7 @@ def registration_header_value(request: HttpRequest) -> str:
 
 
 def challenge_header_value(session_id: str) -> str:
-    return sf.serialize_item(new_refresh_challenge(session_id), {"id": session_id})
+    return serialize_item(new_refresh_challenge(session_id), {"id": session_id})
 
 
 def build_session_config(session_id: str) -> dict[str, Any]:

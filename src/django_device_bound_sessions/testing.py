@@ -19,9 +19,9 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from django.test import Client
 from jwt.algorithms import ECAlgorithm, RSAAlgorithm
 
-from . import sf
 from .api import CHALLENGE_HEADER, REGISTRATION_HEADER, RESPONSE_HEADER, SESSION_ID_HEADER
 from .proof import JWK
+from .structured_fields import parse_list, serialize_string
 
 if TYPE_CHECKING:
     # django-stubs' name for what the test client returns; not public API.
@@ -118,17 +118,14 @@ class DBSCBrowser:
     def observe(self, response: "TestResponse") -> "TestResponse":
         """Process DBSC headers on a response, as a browser would."""
         if REGISTRATION_HEADER in response.headers:
-            for item, params in sf.parse_list(response.headers[REGISTRATION_HEADER]):
+            for item, params in parse_list(response.headers[REGISTRATION_HEADER]):
                 algs = [v for v, _ in item] if isinstance(item, list) else []
-                path, challenge = params.get("path"), params.get("challenge")
-                if self.algorithm in algs and isinstance(path, str):
-                    self.pending_registration = (
-                        path,
-                        challenge if isinstance(challenge, str) else None,
-                    )
+                path = params.get("path")
+                if self.algorithm in algs and path is not None:
+                    self.pending_registration = (path, params.get("challenge"))
                     break
         if CHALLENGE_HEADER in response.headers:
-            for value, params in sf.parse_list(response.headers[CHALLENGE_HEADER]):
+            for value, params in parse_list(response.headers[CHALLENGE_HEADER]):
                 if not isinstance(value, str):
                     continue
                 if self.session_id is None or params.get("id") == self.session_id:
@@ -141,7 +138,7 @@ class DBSCBrowser:
         path, challenge = self.pending_registration
         self.pending_registration = None
         proof = self.make_proof(challenge, include_jwk=True)
-        response = self.client.post(path, headers={RESPONSE_HEADER: sf.serialize_string(proof)})
+        response = self.client.post(path, headers={RESPONSE_HEADER: serialize_string(proof)})
         if response.status_code == 200:
             self.config = response.json()
             self.challenge = None
@@ -156,9 +153,9 @@ class DBSCBrowser:
         refresh_url: str = self.config["refresh_url"]
         self.last_refresh_responses = []
         for _ in range(max_attempts):
-            headers = {SESSION_ID_HEADER: sf.serialize_string(session_id)}
+            headers = {SESSION_ID_HEADER: serialize_string(session_id)}
             if self.challenge:
-                headers[RESPONSE_HEADER] = sf.serialize_string(self.make_proof(self.challenge))
+                headers[RESPONSE_HEADER] = serialize_string(self.make_proof(self.challenge))
                 self.challenge = None
             response = self.observe(self.client.post(refresh_url, headers=headers))
             self.last_refresh_responses.append(response)
