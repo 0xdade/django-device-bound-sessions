@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # Called by release.yml so a release only publishes after CI passes on the tag.
+  workflow_call:
+
+# Jobs only need to read the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.13.7"
+  # The lowest Python we support; used for lint and type-checking jobs.
+  BASE_PYTHON: "3.12"
+  FORCE_COLOR: "1"
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python-version }}, Django ${{ matrix.django }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14", "3.15"]
+        # 5.2 is the current LTS; 6.1 is the latest release (and what uv.lock pins).
+        django: ["5.2", "6.1"]
+        exclude:
+          # Django 5.2 supports Python up to 3.14.
+          - python-version: "3.15"
+            django: "5.2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ matrix.python-version }}
+          # auto: cache on push/PR, but never on release runs (cache poisoning).
+          enable-cache: auto
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Install latest Django ${{ matrix.django }}.x
+        env:
+          DJANGO_SERIES: ${{ matrix.django }}
+        run: |
+          uv pip install "django~=${DJANGO_SERIES}.0"
+          uv pip show django | grep -E '^(Name|Version)'
+      - name: Run tests
+        run: uv run --no-sync pytest
+
+  test-lowest:
+    # Install the oldest versions allowed by our declared dependency ranges
+    # (django>=5.2, pyjwt>=2.10), so a too-loose lower bound gets caught.
+    name: Tests (lowest dependencies)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.BASE_PYTHON }}
+          activate-environment: true
+          # auto: cache on push/PR, but never on release runs (cache poisoning).
+          enable-cache: auto
+          cache-suffix: lowest
+      - name: Install lowest direct dependencies
+        run: |
+          uv pip install --resolution lowest-direct -e .
+          uv pip install pytest pytest-django
+          uv pip list
+      - name: Run tests
+        run: python -m pytest
+
+  pre-commit:
+    name: Pre-commit (ruff lint + format)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.BASE_PYTHON }}
+          # auto: cache on push/PR, but never on release runs (cache poisoning).
+          enable-cache: auto
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        # Never restore caches into a release run (cache poisoning).
+        if: github.event_name != 'release'
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Run pre-commit on all files
+        run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+
+  mypy:
+    name: Type check (mypy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.BASE_PYTHON }}
+          # auto: cache on push/PR, but never on release runs (cache poisoning).
+          enable-cache: auto
+      - name: Install dependencies
+        run: uv sync --locked
+      # Checks src/, tests/, example/ and the typecheck/ downstream contract.
+      - name: Run mypy
+        run: uv run --no-sync mypy
+
+  pyright:
+    name: Type check (pyright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.BASE_PYTHON }}
+          # auto: cache on push/PR, but never on release runs (cache poisoning).
+          enable-cache: auto
+      - name: Install dependencies
+        run: uv sync --locked
+      # Strict on src/ and the typecheck/ downstream contract.
+      - name: Run pyright
+        run: uv run --no-sync pyright

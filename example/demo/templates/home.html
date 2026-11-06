@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+{% if user.is_authenticated %}
+  <p>Logged in as <strong>{{ user.get_username }}</strong>.</p>
+{% else %}
+  <p>Not logged in. <a href="{% url 'login' %}">Log in</a></p>
+{% endif %}
+
+<dl>
+  <dt>DBSC session</dt>
+  <dd>{% if request.dbsc.session_id %}<code>{{ request.dbsc.session_id }}</code>{% else %}none (not registered){% endif %}</dd>
+  <dt>Bound cookie</dt>
+  <dd>{% if request.dbsc.bound %}<span class="ok">valid</span>{% elif request.dbsc.session_id %}<span class="bad">missing / invalid: request treated as anonymous</span>{% else %}n/a{% endif %}</dd>
+  {% if binding %}
+  <dt>Algorithm</dt><dd>{{ binding.algorithm }}</dd>
+  <dt>Key thumbprint</dt><dd><code>{{ binding.thumbprint }}</code></dd>
+  <dt>Registered</dt><dd>{{ binding.created_at }}</dd>
+  <dt>Last refresh</dt><dd>{{ binding.last_refreshed_at|default:"never" }}</dd>
+  <dt>User agent</dt><dd>{{ binding.user_agent }}</dd>
+  {% endif %}
+</dl>
+
+{% if user.is_authenticated or request.dbsc.session_id %}
+<p>
+  <form method="post" action="{% url 'expire' %}">{% csrf_token %}<button>Expire bound cookie</button></form>
+  <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button>Log out</button></form>
+</p>
+<p>The bound cookie lives 60 seconds. After it expires (or you expire it), Chrome should
+refresh it by signing a challenge with its device-bound key before the next request reaches
+the server. Watch the <em>Application → Device Bound Sessions</em> panel and the network log in DevTools.</p>
+<p>The same state as JSON: <a href="{% url 'status' %}">/status/</a></p>
+{% endif %}
+{% endblock %}

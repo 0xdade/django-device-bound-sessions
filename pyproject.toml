@@ -1,0 +1,116 @@
+[project]
+name = "django-device-bound-sessions"
+version = "0.1.0"
+description = "Device Bound Session Credentials (DBSC) for Django"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "0xdade" }]
+classifiers = [
+    "Framework :: Django",
+    "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.1",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
+dependencies = [
+    "django>=5.2",
+    "pyjwt[crypto]>=2.10",
+]
+
+[dependency-groups]
+dev = [
+    "django-stubs[compatible-mypy]>=6.1.2",
+    "mypy>=2.4",
+    "pre-commit>=4.7",
+    "pyright[nodejs]>=1.1.414",
+    "pytest>=8",
+    "pytest-django>=4.14",
+    "ruff>=0.17.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/django_device_bound_sessions"]
+
+[tool.hatch.build.targets.sdist]
+# Ship source, tests, example and the typing contract; leave out dev tooling config.
+exclude = [".github", ".pre-commit-config.yaml", ".python-version"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+pythonpath = [".", "src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "."]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "I",       # isort
+    "B",       # bugbear
+    "UP",      # pyupgrade
+    "SIM",     # simplify
+    "C4",      # comprehensions
+    "DJ",      # django
+    "PT",      # pytest style
+    "S",       # bandit (security)
+    "RUF",     # ruff-specific
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: asserts are the point, and fixtures use hard-coded secrets/passwords.
+"tests/**" = ["S101", "S105", "S106"]
+"typecheck/**" = ["B018"]  # bare `request.dbsc` expressions are the type assertions
+
+[tool.ruff.lint.isort]
+known-first-party = ["django_device_bound_sessions", "demo", "tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["src", "."]
+# typecheck/ holds the downstream typing contract. It sits outside tests/ so
+# the relaxed test settings below never apply to it.
+files = ["src", "tests", "example", "typecheck"]
+plugins = ["mypy_django_plugin.main"]
+warn_unreachable = true
+
+[tool.django-stubs]
+django_settings_module = "tests.settings"
+
+[[tool.mypy.overrides]]
+# pytest fixtures are injected by name; annotating every one adds noise.
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+# Tests index into Optional values they've just produced; a None there fails
+# the test anyway, so narrowing each one first is pure noise.
+disable_error_code = ["index", "union-attr"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+include = ["src", "tests", "example", "typecheck"]
+# Library code and the downstream typing contract are held to strict mode.
+strict = ["src", "typecheck"]
+# Each "# type: ignore[...]" in typecheck/ marks an error that must be
+# reported; flag any that go unused, as mypy's warn_unused_ignores does.
+reportUnnecessaryTypeIgnoreComment = "error"
+executionEnvironments = [
+    { root = "src" },
+    { root = "typecheck", extraPaths = ["src"] },
+    # Same policy as mypy: tests may index into Optional values they've just
+    # produced, since a None there fails the test anyway.
+    { root = "tests", extraPaths = ["src", "."], reportOptionalSubscript = false, reportOptionalMemberAccess = false },
+    { root = "example", extraPaths = ["src"] },
+]

@@ -1,0 +1,88 @@
+name: Release
+
+# Publishes to PyPI when a GitHub release is published, using Trusted
+# Publishing (no API token) with PEP 740 attestations.
+#
+# One-time setup:
+#   1. On PyPI, add a trusted publisher for this project: owner/repo, workflow
+#      "release.yml", environment "pypi". (Use a "pending publisher" for the
+#      first release, before the project exists on PyPI.)
+#   2. On GitHub, create an environment named "pypi" (Settings > Environments).
+#      Optionally require a reviewer and restrict it to tags.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.13.7"
+
+jobs:
+  ci:
+    name: CI
+    # A job-level "./" reference resolves from the triggering commit, not from
+    # files a previous step checked out. GitHub's newer "$/" self-repository
+    # syntax is documented for step-level actions; keep the form that's known to
+    # work for reusable workflows.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+
+  build:
+    name: Build distributions
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          # Release builds never use a cache.
+          enable-cache: false
+      - name: Check the release tag matches the project version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="$(uv version --short)"
+          if [ "${TAG#v}" != "$version" ]; then
+            echo "::error::Release tag '$TAG' does not match the version in pyproject.toml ('$version')."
+            exit 1
+          fi
+          echo "Releasing django-device-bound-sessions $version"
+      - name: Build sdist and wheel
+        run: uv build
+      - name: Smoke-test the built wheel
+        run: |
+          uv run --isolated --no-project --with dist/*.whl \
+            python -c "import django_device_bound_sessions; print('django-device-bound-sessions', django_device_bound_sessions.__version__)"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/django-device-bound-sessions
+    permissions:
+      # Needed only here: mints the OIDC token for Trusted Publishing and
+      # signs the attestations.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          attestations: true
