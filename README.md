@@ -207,6 +207,8 @@ CI (`.github/workflows/ci.yml`) runs on pushes to `main` and on pull requests:
 - **Pre-commit** on every file: `ruff check` + `ruff format`, and [zizmor](https://docs.zizmor.sh/) for the workflows and Dependabot config. In CI, zizmor also runs its online audits, such as checking that each pinned action SHA is a real commit in that action's repository.
 - **mypy** (strict, with django-stubs), **pyright** (strict on `src/` and `typecheck/`) and **ty**.
 
+A final `CI passed` job depends on all of these and succeeds only if they all did. It's the one check to require in branch protection, so changing the matrix never means updating the ruleset.
+
 Actions are pinned to commit SHAs. Dependabot or Renovate can keep them up to date.
 
 Run `uv run pre-commit run --all-files` to lint and format everything by hand. Ruff isn't a project dependency. It runs only through pre-commit, so the hook's `rev` in
