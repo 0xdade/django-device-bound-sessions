@@ -61,6 +61,11 @@ DBSC: DBSCConfig = {
     "SCOPE_SPECIFICATION": [{"type": "exclude", "domain": "*", "path": "/static"}],
 }
 
+# The demo runs as a single runserver process, so Django's default per-process
+# LocMemCache is fine as the replay cache. Deployments with several workers
+# need a shared cache (see the README's security notes).
+SILENCED_SYSTEM_CHECKS = ["django_device_bound_sessions.W001"]
+
 LOGGING = {
     "version": 1,
     "handlers": {"console": {"class": "logging.StreamHandler"}},

@@ -21,5 +21,7 @@ ROOT_URLCONF = "tests.urls"
 
 DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+# The test run is a single process, so a per-process replay cache is fine.
+SILENCED_SYSTEM_CHECKS = ["django_device_bound_sessions.W001"]
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

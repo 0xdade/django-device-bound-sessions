@@ -151,7 +151,7 @@ Set these in a `DBSC` dict in your settings:
 | `BOUND_COOKIE_DOMAIN` / `_PATH` / `_SECURE` / `_HTTPONLY` / `_SAMESITE` | `None` / `"/"` / `True` / `True` / `"Lax"` | |
 | `ALGORITHMS` | `["ES256", "RS256"]` | offered in preference order (`none` is never accepted) |
 | `CHALLENGE_MAX_AGE` | `60` | seconds a registration challenge is valid, from when the offer is sent. Refresh challenges last as long as a bound cookie (`BOUND_COOKIE_AGE + BOUND_COOKIE_GRACE`) |
-| `CACHE_ALIAS` | `"default"` | cache that makes challenges single-use; use a shared cache in production |
+| `CACHE_ALIAS` | `"default"` | cache that makes challenges single-use; must be shared by every worker (see Security notes) |
 | `SCOPE_ORIGIN` | `None` | `scope.origin` |
 | `SCOPE_INCLUDE_SITE` | `False` | `scope.include_site` |
 | `SCOPE_SPECIFICATION` | `[]` | e.g. `[{"type": "exclude", "domain": "*", "path": "/static"}]` |
@@ -166,6 +166,7 @@ Set these in a `DBSC` dict in your settings:
 - **A binding is permanent for the life of the session.** The first device to register owns the session. Registration is refused (409) on a session that is already bound, so a stolen session cookie can't be used to move the session onto another device. To use a new device, log in again, which creates a new session.
 - **The window before binding is unprotected, and it's kept short.** Until registration completes, whoever holds the session cookie could receive the registration offer. Offers are only sent for `OFFER_MAX_AGE` seconds after login and are used once. DBSC can't protect a session that was stolen before it was bound; like the spec, this library assumes the device wasn't compromised at login time.
 - Challenges are signed with `SECRET_KEY` and expire. Each one is accepted once, enforced through the cache. Registration challenges are tied to the Django session that received them.
+- **The cache must be shared by every worker.** It's the only state the library keeps outside the session: a record of used challenges, so a signed proof can't be replayed. Use a cache that every process and server sees and that has an atomic `add()`, such as Redis, Memcached or Django's database cache, and point `CACHE_ALIAS` at it. Django's default `LocMemCache` is per-process, so with several workers a used proof could be replayed on another worker until its challenge expires. `DummyCache` disables replay protection entirely, because its `add()` always succeeds. A system check (run by `manage.py check`, `runserver` and `migrate`) warns about `LocMemCache` (`django_device_bound_sessions.W001`, which you can silence with `SILENCED_SYSTEM_CHECKS` if you only ever run one process) and reports an error for `DummyCache` (`E002`) or a `CACHE_ALIAS` that isn't in `CACHES` (`E001`).
 - A refresh with an invalid proof is rejected, but the DBSC session stays alive. Otherwise anyone holding a stolen cookie could knock the real device off.
 - A refresh without the matching Django session (the user logged out, the session expired, or the binding was replaced) returns `{"continue": false}`, which tells the browser to stop. It never changes the session it was sent with.
 - DBSC endpoints are CSRF-exempt, because the browser calls them without a token. The signed challenge authenticates them instead. Responses are `no-store` and `X-Frame-Options: DENY`.
